@@ -43,8 +43,8 @@ func TestValidateAttach(t *testing.T) {
 	}
 }
 
-func parseRun(args []string) (*container.Config, *container.HostConfig, *networktypes.NetworkingConfig, error) {
-	flags, copts := setupRunFlags()
+func ParseRun(args []string) (*container.Config, *container.HostConfig, *networktypes.NetworkingConfig, error) {
+	flags, copts := SetupRunFlags()
 	if err := flags.Parse(args); err != nil {
 		return nil, nil, nil, err
 	}
@@ -56,7 +56,7 @@ func parseRun(args []string) (*container.Config, *container.HostConfig, *network
 	return containerConfig.Config, containerConfig.HostConfig, containerConfig.NetworkingConfig, err
 }
 
-func setupRunFlags() (*pflag.FlagSet, *containerOptions) {
+func SetupRunFlags() (*pflag.FlagSet, *containerOptions) {
 	flags := pflag.NewFlagSet("run", pflag.ContinueOnError)
 	flags.SetOutput(ioutil.Discard)
 	flags.Usage = nil
@@ -66,7 +66,7 @@ func setupRunFlags() (*pflag.FlagSet, *containerOptions) {
 
 func mustParse(t *testing.T, args string) (*container.Config, *container.HostConfig) {
 	t.Helper()
-	config, hostConfig, _, err := parseRun(append(strings.Split(args, " "), "ubuntu", "bash"))
+	config, hostConfig, _, err := ParseRun(append(strings.Split(args, " "), "ubuntu", "bash"))
 	assert.NilError(t, err)
 	return config, hostConfig
 }
@@ -174,7 +174,7 @@ func TestParseRunWithInvalidArgs(t *testing.T) {
 			error: `unknown shorthand flag: 'z' in -z`,
 		},
 	}
-	flags, _ := setupRunFlags()
+	flags, _ := SetupRunFlags()
 	for _, tc := range tests {
 		t.Run(strings.Join(tc.args, " "), func(t *testing.T) {
 			assert.Error(t, flags.Parse(tc.args), tc.error)
@@ -289,7 +289,7 @@ func compareRandomizedStrings(a, b, c, d string) error {
 func TestParseWithMacAddress(t *testing.T) {
 	invalidMacAddress := "--mac-address=invalidMacAddress"
 	validMacAddress := "--mac-address=92:d0:c6:0a:29:33"
-	if _, _, _, err := parseRun([]string{invalidMacAddress, "img", "cmd"}); err != nil && err.Error() != "invalidMacAddress is not a valid mac address" {
+	if _, _, _, err := ParseRun([]string{invalidMacAddress, "img", "cmd"}); err != nil && err.Error() != "invalidMacAddress is not a valid mac address" {
 		t.Fatalf("Expected an error with %v mac-address, got %v", invalidMacAddress, err)
 	}
 	if config, _ := mustParse(t, validMacAddress); config.MacAddress != "92:d0:c6:0a:29:33" {
@@ -298,7 +298,7 @@ func TestParseWithMacAddress(t *testing.T) {
 }
 
 func TestRunFlagsParseWithMemory(t *testing.T) {
-	flags, _ := setupRunFlags()
+	flags, _ := SetupRunFlags()
 	args := []string{"--memory=invalid", "img", "cmd"}
 	err := flags.Parse(args)
 	assert.ErrorContains(t, err, `invalid argument "invalid" for "-m, --memory" flag`)
@@ -308,7 +308,7 @@ func TestRunFlagsParseWithMemory(t *testing.T) {
 }
 
 func TestParseWithMemorySwap(t *testing.T) {
-	flags, _ := setupRunFlags()
+	flags, _ := SetupRunFlags()
 	args := []string{"--memory-swap=invalid", "img", "cmd"}
 	err := flags.Parse(args)
 	assert.ErrorContains(t, err, `invalid argument "invalid" for "--memory-swap" flag`)
@@ -383,12 +383,12 @@ func TestParseWithExpose(t *testing.T) {
 		"8080-8082/tcp": {"8080/tcp", "8081/tcp", "8082/tcp"},
 	}
 	for expose, expectedError := range invalids {
-		if _, _, _, err := parseRun([]string{fmt.Sprintf("--expose=%v", expose), "img", "cmd"}); err == nil || err.Error() != expectedError {
+		if _, _, _, err := ParseRun([]string{fmt.Sprintf("--expose=%v", expose), "img", "cmd"}); err == nil || err.Error() != expectedError {
 			t.Fatalf("Expected error '%v' with '--expose=%v', got '%v'", expectedError, expose, err)
 		}
 	}
 	for expose, exposedPorts := range valids {
-		config, _, _, err := parseRun([]string{fmt.Sprintf("--expose=%v", expose), "img", "cmd"})
+		config, _, _, err := ParseRun([]string{fmt.Sprintf("--expose=%v", expose), "img", "cmd"})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -402,7 +402,7 @@ func TestParseWithExpose(t *testing.T) {
 		}
 	}
 	// Merge with actual published port
-	config, _, _, err := parseRun([]string{"--publish=80", "--expose=80-81/tcp", "img", "cmd"})
+	config, _, _, err := ParseRun([]string{"--publish=80", "--expose=80-81/tcp", "img", "cmd"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -442,7 +442,7 @@ func TestParseDevice(t *testing.T) {
 		},
 	}
 	for device, deviceMapping := range valids {
-		_, hostconfig, _, err := parseRun([]string{fmt.Sprintf("--device=%v", device), "img", "cmd"})
+		_, hostconfig, _, err := ParseRun([]string{fmt.Sprintf("--device=%v", device), "img", "cmd"})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -593,7 +593,7 @@ func TestParseNetworkConfig(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			_, hConfig, nwConfig, err := parseRun(tc.flags)
+			_, hConfig, nwConfig, err := ParseRun(tc.flags)
 
 			if tc.expectedErr != "" {
 				assert.Error(t, err, tc.expectedErr)
@@ -609,25 +609,25 @@ func TestParseNetworkConfig(t *testing.T) {
 
 func TestParseModes(t *testing.T) {
 	// pid ko
-	flags, copts := setupRunFlags()
+	flags, copts := SetupRunFlags()
 	args := []string{"--pid=container:", "img", "cmd"}
 	assert.NilError(t, flags.Parse(args))
 	_, err := parse(flags, copts, runtime.GOOS)
 	assert.ErrorContains(t, err, "--pid: invalid PID mode")
 
 	// pid ok
-	_, hostconfig, _, err := parseRun([]string{"--pid=host", "img", "cmd"})
+	_, hostconfig, _, err := ParseRun([]string{"--pid=host", "img", "cmd"})
 	assert.NilError(t, err)
 	if !hostconfig.PidMode.Valid() {
 		t.Fatalf("Expected a valid PidMode, got %v", hostconfig.PidMode)
 	}
 
 	// uts ko
-	_, _, _, err = parseRun([]string{"--uts=container:", "img", "cmd"}) //nolint:dogsled
+	_, _, _, err = ParseRun([]string{"--uts=container:", "img", "cmd"}) //nolint:dogsled
 	assert.ErrorContains(t, err, "--uts: invalid UTS mode")
 
 	// uts ok
-	_, hostconfig, _, err = parseRun([]string{"--uts=host", "img", "cmd"})
+	_, hostconfig, _, err = ParseRun([]string{"--uts=host", "img", "cmd"})
 	assert.NilError(t, err)
 	if !hostconfig.UTSMode.Valid() {
 		t.Fatalf("Expected a valid UTSMode, got %v", hostconfig.UTSMode)
@@ -636,14 +636,14 @@ func TestParseModes(t *testing.T) {
 
 func TestRunFlagsParseShmSize(t *testing.T) {
 	// shm-size ko
-	flags, _ := setupRunFlags()
+	flags, _ := SetupRunFlags()
 	args := []string{"--shm-size=a128m", "img", "cmd"}
 	expectedErr := `invalid argument "a128m" for "--shm-size" flag: invalid size: 'a128m'`
 	err := flags.Parse(args)
 	assert.ErrorContains(t, err, expectedErr)
 
 	// shm-size ok
-	_, hostconfig, _, err := parseRun([]string{"--shm-size=128m", "img", "cmd"})
+	_, hostconfig, _, err := ParseRun([]string{"--shm-size=128m", "img", "cmd"})
 	assert.NilError(t, err)
 	if hostconfig.ShmSize != 134217728 {
 		t.Fatalf("Expected a valid ShmSize, got %d", hostconfig.ShmSize)
@@ -667,12 +667,12 @@ func TestParseRestartPolicy(t *testing.T) {
 		},
 	}
 	for restart, expectedError := range invalids {
-		if _, _, _, err := parseRun([]string{fmt.Sprintf("--restart=%s", restart), "img", "cmd"}); err == nil || err.Error() != expectedError {
+		if _, _, _, err := ParseRun([]string{fmt.Sprintf("--restart=%s", restart), "img", "cmd"}); err == nil || err.Error() != expectedError {
 			t.Fatalf("Expected an error with message '%v' for %v, got %v", expectedError, restart, err)
 		}
 	}
 	for restart, expected := range valids {
-		_, hostconfig, _, err := parseRun([]string{fmt.Sprintf("--restart=%v", restart), "img", "cmd"})
+		_, hostconfig, _, err := ParseRun([]string{fmt.Sprintf("--restart=%v", restart), "img", "cmd"})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -684,7 +684,7 @@ func TestParseRestartPolicy(t *testing.T) {
 
 func TestParseRestartPolicyAutoRemove(t *testing.T) {
 	expected := "Conflicting options: --restart and --rm"
-	_, _, _, err := parseRun([]string{"--rm", "--restart=always", "img", "cmd"}) //nolint:dogsled
+	_, _, _, err := ParseRun([]string{"--rm", "--restart=always", "img", "cmd"}) //nolint:dogsled
 	if err == nil || err.Error() != expected {
 		t.Fatalf("Expected error %v, but got none", expected)
 	}
@@ -692,14 +692,14 @@ func TestParseRestartPolicyAutoRemove(t *testing.T) {
 
 func TestParseHealth(t *testing.T) {
 	checkOk := func(args ...string) *container.HealthConfig {
-		config, _, _, err := parseRun(args)
+		config, _, _, err := ParseRun(args)
 		if err != nil {
 			t.Fatalf("%#v: %v", args, err)
 		}
 		return config.Healthcheck
 	}
 	checkError := func(expected string, args ...string) {
-		config, _, _, err := parseRun(args)
+		config, _, _, err := ParseRun(args)
 		if err == nil {
 			t.Fatalf("Expected error, but got %#v", config)
 		}
@@ -731,11 +731,11 @@ func TestParseHealth(t *testing.T) {
 
 func TestParseLoggingOpts(t *testing.T) {
 	// logging opts ko
-	if _, _, _, err := parseRun([]string{"--log-driver=none", "--log-opt=anything", "img", "cmd"}); err == nil || err.Error() != "invalid logging opts for driver none" {
+	if _, _, _, err := ParseRun([]string{"--log-driver=none", "--log-opt=anything", "img", "cmd"}); err == nil || err.Error() != "invalid logging opts for driver none" {
 		t.Fatalf("Expected an error with message 'invalid logging opts for driver none', got %v", err)
 	}
 	// logging opts ok
-	_, hostconfig, _, err := parseRun([]string{"--log-driver=syslog", "--log-opt=something", "img", "cmd"})
+	_, hostconfig, _, err := ParseRun([]string{"--log-driver=syslog", "--log-opt=something", "img", "cmd"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -750,18 +750,18 @@ func TestParseEnvfileVariables(t *testing.T) {
 		e = "open nonexistent: The system cannot find the file specified."
 	}
 	// env ko
-	if _, _, _, err := parseRun([]string{"--env-file=nonexistent", "img", "cmd"}); err == nil || err.Error() != e {
+	if _, _, _, err := ParseRun([]string{"--env-file=nonexistent", "img", "cmd"}); err == nil || err.Error() != e {
 		t.Fatalf("Expected an error with message '%s', got %v", e, err)
 	}
 	// env ok
-	config, _, _, err := parseRun([]string{"--env-file=testdata/valid.env", "img", "cmd"})
+	config, _, _, err := ParseRun([]string{"--env-file=testdata/valid.env", "img", "cmd"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(config.Env) != 1 || config.Env[0] != "ENV1=value1" {
 		t.Fatalf("Expected a config with [ENV1=value1], got %v", config.Env)
 	}
-	config, _, _, err = parseRun([]string{"--env-file=testdata/valid.env", "--env=ENV2=value2", "img", "cmd"})
+	config, _, _, err = ParseRun([]string{"--env-file=testdata/valid.env", "--env=ENV2=value2", "img", "cmd"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -772,7 +772,7 @@ func TestParseEnvfileVariables(t *testing.T) {
 
 func TestParseEnvfileVariablesWithBOMUnicode(t *testing.T) {
 	// UTF8 with BOM
-	config, _, _, err := parseRun([]string{"--env-file=testdata/utf8.env", "img", "cmd"})
+	config, _, _, err := ParseRun([]string{"--env-file=testdata/utf8.env", "img", "cmd"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -788,11 +788,11 @@ func TestParseEnvfileVariablesWithBOMUnicode(t *testing.T) {
 
 	// UTF16 with BOM
 	e := "contains invalid utf8 bytes at line"
-	if _, _, _, err := parseRun([]string{"--env-file=testdata/utf16.env", "img", "cmd"}); err == nil || !strings.Contains(err.Error(), e) {
+	if _, _, _, err := ParseRun([]string{"--env-file=testdata/utf16.env", "img", "cmd"}); err == nil || !strings.Contains(err.Error(), e) {
 		t.Fatalf("Expected an error with message '%s', got %v", e, err)
 	}
 	// UTF16BE with BOM
-	if _, _, _, err := parseRun([]string{"--env-file=testdata/utf16be.env", "img", "cmd"}); err == nil || !strings.Contains(err.Error(), e) {
+	if _, _, _, err := ParseRun([]string{"--env-file=testdata/utf16be.env", "img", "cmd"}); err == nil || !strings.Contains(err.Error(), e) {
 		t.Fatalf("Expected an error with message '%s', got %v", e, err)
 	}
 }
@@ -803,18 +803,18 @@ func TestParseLabelfileVariables(t *testing.T) {
 		e = "open nonexistent: The system cannot find the file specified."
 	}
 	// label ko
-	if _, _, _, err := parseRun([]string{"--label-file=nonexistent", "img", "cmd"}); err == nil || err.Error() != e {
+	if _, _, _, err := ParseRun([]string{"--label-file=nonexistent", "img", "cmd"}); err == nil || err.Error() != e {
 		t.Fatalf("Expected an error with message '%s', got %v", e, err)
 	}
 	// label ok
-	config, _, _, err := parseRun([]string{"--label-file=testdata/valid.label", "img", "cmd"})
+	config, _, _, err := ParseRun([]string{"--label-file=testdata/valid.label", "img", "cmd"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(config.Labels) != 1 || config.Labels["LABEL1"] != "value1" {
 		t.Fatalf("Expected a config with [LABEL1:value1], got %v", config.Labels)
 	}
-	config, _, _, err = parseRun([]string{"--label-file=testdata/valid.label", "--label=LABEL2=value2", "img", "cmd"})
+	config, _, _, err = ParseRun([]string{"--label-file=testdata/valid.label", "--label=LABEL2=value2", "img", "cmd"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -824,7 +824,7 @@ func TestParseLabelfileVariables(t *testing.T) {
 }
 
 func TestParseEntryPoint(t *testing.T) {
-	config, _, _, err := parseRun([]string{"--entrypoint=anything", "cmd", "img"})
+	config, _, _, err := ParseRun([]string{"--entrypoint=anything", "cmd", "img"})
 	if err != nil {
 		t.Fatal(err)
 	}
